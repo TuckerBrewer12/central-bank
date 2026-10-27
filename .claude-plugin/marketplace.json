@@ -1,0 +1,19 @@
+{
+  "name": "central-bank",
+  "owner": { "name": "Tucker Brewer" },
+  "metadata": {
+    "description": "Tucker's software factory: shared skills and workflows for every project."
+  },
+  "plugins": [
+    {
+      "name": "central-bank",
+      "source": "./plugins/central-bank",
+      "description": "Record finished work to the central-bank ledger, plus the factory's own workflows."
+    },
+    {
+      "name": "pstack",
+      "source": "./plugins/pstack",
+      "description": "poteto's pstack (cursor/plugins), pinned in vendor.json. Rigorous agent workflows: poteto-mode, interrogate, architect, blast-radius, correct, and more."
+    }
+  ]
+}

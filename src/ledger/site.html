@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>central-bank ledger</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.10);
+  --wash: rgba(11, 11, 11, 0.04);
+  --link: #1c5cab;
+  --kept: #2a78d6;
+  --unaddressed: #eb6834;
+  --disregarded: #1baf7a;
+  --open: #eda100;
+  --single: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
+    --link: #86b6ef; --kept: #3987e5; --unaddressed: #d95926; --disregarded: #199e70; --open: #c98500; --single: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
+  --link: #86b6ef; --kept: #3987e5; --unaddressed: #d95926; --disregarded: #199e70; --open: #c98500; --single: #3987e5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased;
+}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 64px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 14px; font-weight: 600; margin: 0; }
+.sub { color: var(--ink-2); font-size: 13px; }
+.muted { color: var(--muted); }
+button, select, input {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--ring); border-radius: 8px; padding: 6px 10px;
+}
+button { cursor: pointer; }
+button:hover, select:hover { background: var(--wash); }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; }
+.filters label { display: flex; gap: 6px; align-items: center; color: var(--ink-2); font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 18px 20px; }
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.tiles { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+.tile .note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.tile.hero .value { font-size: 52px; line-height: 1.05; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.full { margin-bottom: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 8px 0 4px; color: var(--ink-2); font-size: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+svg { display: block; width: 100%; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+svg text.ink { fill: var(--ink-2); }
+svg .hit { fill: transparent; }
+svg .mark { transition: opacity 120ms; }
+svg g.seg:hover .mark, svg g.seg:focus .mark { opacity: 0.8; }
+svg g.seg:focus { outline: none; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 600; color: var(--ink-2); font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--grid); position: sticky; top: 0; background: var(--surface); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+td:first-child { white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:hover td { background: var(--wash); }
+.scroll { max-height: 460px; overflow: auto; margin-top: 8px; }
+.key { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--ring); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.excerpt { color: var(--ink-2); }
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 10; min-width: 140px;
+  background: var(--surface); border: 1px solid var(--ring); border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12px; display: none;
+}
+.tooltip .t-title { color: var(--ink-2); margin-bottom: 4px; }
+.tooltip .t-row { display: flex; align-items: center; gap: 8px; }
+.tooltip .t-row b { color: var(--ink); font-size: 13px; }
+.tooltip .t-row .k { width: 12px; height: 2px; border-radius: 1px; }
+.entry { padding: 14px 0; border-bottom: 1px solid var(--grid); }
+.entry:last-child { border-bottom: 0; }
+.entry-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.entry-title { font-weight: 600; }
+.entry-summary { color: var(--ink-2); margin-top: 6px; white-space: pre-wrap; }
+.entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.entry-links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; font-size: 13px; }
+.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+@media (max-width: 900px) {
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .tile.hero { grid-column: 1 / -1; }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>central-bank ledger</h1>
+      <div class="sub" id="generated"></div>
+    </div>
+    <button id="theme" type="button" aria-label="Toggle dark mode">Theme</button>
+  </header>
+
+  <div class="filters">
+    <label>Project <select id="f-project"></select></label>
+    <label>Period
+      <select id="f-period">
+        <option value="all">All time</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+    </label>
+    <label>Lens <select id="f-lens"></select></label>
+  </div>
+
+  <section class="tiles" id="tiles"></section>
+
+  <section class="card full" id="loops-card">
+    <div class="card-head"><h2>Loop runs</h2><span class="sub" id="loops-count"></span></div>
+    <div class="scroll" id="table-loops"></div>
+  </section>
+
+  <section class="card full">
+    <div class="card-head"><h2>Timeline</h2><span class="sub" id="entries-count"></span></div>
+    <div id="entries"></div>
+  </section>
+
+  <section class="card full">
+    <div class="card-head">
+      <h2>Findings by week, by outcome</h2>
+      <span class="sub" id="weekly-note"></span>
+    </div>
+    <div class="legend" id="legend-weekly"></div>
+    <div id="chart-weekly"></div>
+    <details><summary>Table view</summary><div class="scroll" id="table-weekly"></div></details>
+  </section>
+
+  <section class="grid-2">
+    <div class="card">
+      <div class="card-head"><h2>Outcomes by lens</h2></div>
+      <div class="legend" id="legend-lens"></div>
+      <div id="chart-lens"></div>
+      <details><summary>Table view</summary><div class="scroll" id="table-lens"></div></details>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Pull requests by writer</h2><span class="sub">bot fix PRs excluded</span></div>
+      <div id="chart-writer"></div>
+      <details><summary>Table view</summary><div class="scroll" id="table-writer"></div></details>
+    </div>
+  </section>
+
+  <section class="card full">
+    <div class="card-head"><h2>Most-flagged files</h2></div>
+    <div class="scroll" id="table-files"></div>
+  </section>
+
+  <section class="card full">
+    <div class="card-head">
+      <h2>Findings</h2>
+      <span class="sub" id="findings-count"></span>
+    </div>
+    <div class="filters" style="margin: 10px 0 0">
+      <label>Outcome <select id="f-outcome"></select></label>
+      <label>Confidence
+        <select id="f-confidence">
+          <option value="">Any</option>
+          <option value="exact">Exact</option>
+          <option value="heuristic">Heuristic</option>
+        </select>
+      </label>
+      <input id="f-search" type="search" placeholder="Search file or text" size="28">
+    </div>
+    <div class="scroll" id="table-findings"></div>
+  </section>
+
+  <section class="card full">
+    <div class="card-head">
+      <h2>Pull requests</h2>
+      <span class="sub" id="prs-count"></span>
+    </div>
+    <div class="scroll" id="table-prs"></div>
+  </section>
+</main>
+<div class="tooltip" id="tooltip" role="status"></div>
+
+<script id="ledger-data" type="application/json">/*__LEDGER_DATA__*/</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("ledger-data").textContent);
+const OUTCOMES = [
+  { key: "kept", label: "Kept" },
+  { key: "unaddressed", label: "Unaddressed" },
+  { key: "disregarded", label: "Disregarded" },
+  { key: "open", label: "Open" },
+];
+const SVG = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const fmt = new Intl.NumberFormat("en-US");
+const pct = (x) => (x === null ? "–" : `${Math.round(x * 100)}%`);
+const color = (key) => getComputedStyle(document.documentElement).getPropertyValue(`--${key}`).trim();
+
+// ---------- theme ----------
+$("theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme
+    ? root.dataset.theme === "dark"
+    : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+  render();
+});
+
+// ---------- filters ----------
+const projects = [...new Set([...DATA.prs.map((p) => p.repo), ...(DATA.entries ?? []).map((e) => e.repo)])].sort();
+const lenses = [...new Set(DATA.prs.flatMap((p) => p.findings.map((f) => f.lens)))].sort();
+function fill(select, options) {
+  for (const [value, label] of options) {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    select.append(o);
+  }
+}
+fill($("f-project"), [["", "All projects"], ...projects.map((p) => [p, p.split("/")[1]])]);
+fill($("f-lens"), [["", "All lenses"], ...lenses.map((l) => [l, l])]);
+fill($("f-outcome"), [["", "Any"], ...OUTCOMES.map((o) => [o.key, o.label])]);
+const defaultProject = projects.includes("TuckerBrewer12/BirdieEyeView") ? "TuckerBrewer12/BirdieEyeView" : "";
+$("f-project").value = defaultProject;
+for (const id of ["f-project", "f-period", "f-lens", "f-outcome", "f-confidence"]) $(id).addEventListener("change", render);
+$("f-search").addEventListener("input", renderFindingsTable);
+
+function slice() {
+  const project = $("f-project").value;
+  const period = $("f-period").value;
+  const lens = $("f-lens").value;
+  const since = period === "all" ? "" : new Date(Date.now() - Number(period) * 864e5).toISOString();
+  const prs = DATA.prs.filter((p) => (!project || p.repo === project) && p.createdAt >= since);
+  const findings = DATA.prs
+    .filter((p) => !project || p.repo === project)
+    .flatMap((p) => p.findings.map((f) => ({ ...f, pr: p })))
+    .filter((f) => f.createdAt >= since && (!lens || f.lens === lens));
+  return { prs, findings };
+}
+
+function tally(findings) {
+  const t = { findings: findings.length, kept: 0, unaddressed: 0, disregarded: 0, open: 0, exact: 0 };
+  for (const f of findings) {
+    t[f.outcome]++;
+    if (f.confidence === "exact") t.exact++;
+  }
+  const settled = t.kept + t.unaddressed + t.disregarded;
+  t.keptRate = settled ? t.kept / settled : null;
+  return t;
+}
+
+// ---------- tooltip ----------
+const tip = $("tooltip");
+function showTip(event, title, rows) {
+  tip.replaceChildren();
+  const head = document.createElement("div");
+  head.className = "t-title";
+  head.textContent = title;
+  tip.append(head);
+  for (const r of rows) {
+    const row = document.createElement("div");
+    row.className = "t-row";
+    if (r.key) {
+      const k = document.createElement("span");
+      k.className = "k";
+      k.style.background = color(r.key);
+      row.append(k);
+    }
+    const b = document.createElement("b");
+    b.textContent = r.value;
+    const s = document.createElement("span");
+    s.className = "muted";
+    s.textContent = r.label;
+    row.append(b, s);
+    tip.append(row);
+  }
+  tip.style.display = "block";
+  const box = event.target.getBoundingClientRect ? event : null;
+  const x = event.clientX ?? event.target.getBoundingClientRect().right;
+  const y = event.clientY ?? event.target.getBoundingClientRect().top;
+  const w = tip.offsetWidth;
+  tip.style.left = `${Math.min(x + 14, innerWidth - w - 8)}px`;
+  tip.style.top = `${Math.max(8, y - tip.offsetHeight - 10)}px`;
+}
+const hideTip = () => (tip.style.display = "none");
+
+function el(name, attrs = {}, parent) {
+  const node = document.createElementNS(SVG, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (parent) parent.append(node);
+  return node;
+}
+function text(parent, x, y, value, attrs = {}) {
+  const t = el("text", { x, y, ...attrs }, parent);
+  t.textContent = value;
+  return t;
+}
+function niceMax(max) {
+  if (max <= 5) return 5;
+  const p = 10 ** Math.floor(Math.log10(max));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= max) return m * p;
+  return 10 * p;
+}
+/** Bar with a 4px rounded data end and a square baseline. dir: "up" or "right". */
+function barPath(x, y, w, h, dir, rounded) {
+  const r = rounded ? Math.min(4, dir === "up" ? h : w, dir === "up" ? w / 2 : h / 2) : 0;
+  if (dir === "up") {
+    return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`;
+  }
+  return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x} Z`;
+}
+function legend(target) {
+  target.replaceChildren();
+  for (const o of OUTCOMES) {
+    const s = document.createElement("span");
+    const i = document.createElement("i");
+    i.style.background = color(o.key);
+    s.append(i, document.createTextNode(o.label));
+    target.append(s);
+  }
+}
+function table(target, headers, rows) {
+  target.replaceChildren();
+  if (rows.length === 0) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = "Nothing in this slice.";
+    target.append(d);
+    return;
+  }
+  const t = document.createElement("table");
+  const tr = document.createElement("tr");
+  for (const h of headers) {
+    const th = document.createElement("th");
+    th.textContent = h.label;
+    if (h.num) th.className = "num";
+    tr.append(th);
+  }
+  const thead = document.createElement("thead");
+  thead.append(tr);
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const r = document.createElement("tr");
+    row.forEach((cell, i) => {
+      const td = document.createElement("td");
+      if (headers[i].num) td.className = "num";
+      if (cell instanceof Node) td.append(cell);
+      else td.textContent = cell;
+      r.append(td);
+    });
+    tbody.append(r);
+  }
+  t.append(thead, tbody);
+  target.append(t);
+}
+function link(href, label, cls) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noreferrer";
+  a.textContent = label;
+  if (cls) a.className = cls;
+  return a;
+}
+function outcomeCell(outcome) {
+  const span = document.createElement("span");
+  const k = document.createElement("span");
+  k.className = "key";
+  k.style.background = color(outcome);
+  span.append(k, document.createTextNode(OUTCOMES.find((o) => o.key === outcome).label));
+  return span;
+}
+
+// ---------- tiles ----------
+function renderTiles(prs, findings) {
+  const work = prs.filter((p) => p.fixes === null);
+  const t = tally(findings);
+  const tiles = [
+    { hero: true, label: "Kept rate", value: pct(t.keptRate), note: `${fmt.format(t.kept)} of ${fmt.format(t.kept + t.unaddressed + t.disregarded)} settled findings` },
+    { label: "Findings", value: fmt.format(t.findings), note: `${fmt.format(t.open)} still open` },
+    { label: "From an explicit signal", value: pct(t.findings ? t.exact / t.findings : null), note: "the rest inferred from thread state" },
+    { label: "PRs merged", value: fmt.format(work.filter((p) => p.state === "MERGED").length), note: `${fmt.format(work.length)} opened` },
+    { label: "Open PRs", value: fmt.format(work.filter((p) => p.state === "OPEN").length), note: `${fmt.format(prs.length - work.length)} bot fix PRs` },
+  ];
+  const root = $("tiles");
+  root.replaceChildren();
+  for (const tile of tiles) {
+    const card = document.createElement("div");
+    card.className = `card tile${tile.hero ? " hero" : ""}`;
+    for (const [cls, value] of [["label", tile.label], ["value", tile.value], ["note", tile.note]]) {
+      const d = document.createElement("div");
+      d.className = cls;
+      d.textContent = value;
+      card.append(d);
+    }
+    root.append(card);
+  }
+}
+
+// ---------- weekly stacked columns ----------
+function weekStart(iso) {
+  const d = new Date(iso);
+  const day = (d.getUTCDay() + 6) % 7;
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day)).toISOString().slice(0, 10);
+}
+function renderWeekly(findings) {
+  legend($("legend-weekly"));
+  const target = $("chart-weekly");
+  target.replaceChildren();
+  const byWeek = new Map();
+  for (const f of findings) {
+    const w = weekStart(f.createdAt);
+    byWeek.set(w, [...(byWeek.get(w) ?? []), f]);
+  }
+  const weeks = [...byWeek.keys()].sort();
+  if (weeks.length === 0) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = "No findings in this slice.";
+    target.append(d);
+    table($("table-weekly"), [], []);
+    $("weekly-note").textContent = "";
+    return;
+  }
+  // Fill empty weeks so time reads evenly.
+  const all = [];
+  for (let d = new Date(weeks[0]); d <= new Date(weeks[weeks.length - 1]); d.setUTCDate(d.getUTCDate() + 7)) {
+    all.push(d.toISOString().slice(0, 10));
+  }
+  const rows = all.map((w) => ({ week: w, t: tally(byWeek.get(w) ?? []) }));
+  const width = target.clientWidth || 800;
+  const height = 240;
+  const m = { top: 12, right: 8, bottom: 26, left: 36 };
+  const iw = width - m.left - m.right;
+  const ih = height - m.top - m.bottom;
+  const max = niceMax(Math.max(...rows.map((r) => r.t.findings)));
+  const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": "Findings by week, stacked by outcome" }, target);
+  for (let i = 0; i <= 4; i++) {
+    const v = (max / 4) * i;
+    const y = m.top + ih - (v / max) * ih;
+    el("line", { x1: m.left, x2: width - m.right, y1: y, y2: y, stroke: i === 0 ? color("axis") : color("grid"), "stroke-width": 1 }, svg);
+    text(svg, m.left - 8, y + 4, fmt.format(v), { "text-anchor": "end" });
+  }
+  const band = iw / rows.length;
+  const bw = Math.min(24, band * 0.6);
+  const labelEvery = Math.ceil(rows.length / Math.max(1, Math.floor(iw / 70)));
+  rows.forEach((r, i) => {
+    const x = m.left + band * i + (band - bw) / 2;
+    let y = m.top + ih;
+    const g = el("g", { class: "seg", tabindex: 0 }, svg);
+    const present = OUTCOMES.filter((o) => r.t[o.key] > 0);
+    present.forEach((o, j) => {
+      const h = (r.t[o.key] / max) * ih;
+      const top = j === present.length - 1;
+      const gap = j === 0 ? 0 : 2;
+      el("path", { class: "mark", d: barPath(x, y - h + gap, bw, Math.max(0, h - gap), "up", top), fill: color(o.key) }, g);
+      y -= h;
+    });
+    el("rect", { class: "hit", x: m.left + band * i, y: m.top, width: band, height: ih }, g);
+    const tipRows = [
+      { value: fmt.format(r.t.findings), label: "findings" },
+      ...OUTCOMES.map((o) => ({ key: o.key, value: fmt.format(r.t[o.key]), label: o.label })),
+      { value: pct(r.t.keptRate), label: "kept rate" },
+    ];
+    const show = (e) => showTip(e, `Week of ${r.week}`, tipRows);
+    g.addEventListener("pointermove", show);
+    g.addEventListener("focus", (e) => showTip({ target: e.target, clientX: e.target.getBoundingClientRect().right, clientY: e.target.getBoundingClientRect().top + 20 }, `Week of ${r.week}`, tipRows));
+    g.addEventListener("pointerleave", hideTip);
+    g.addEventListener("blur", hideTip);
+    if (i % labelEvery === 0) {
+      const d = new Date(r.week);
+      text(svg, m.left + band * i + band / 2, height - 8, d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }), { "text-anchor": "middle" });
+    }
+  });
+  const peak = rows.reduce((a, b) => (b.t.findings > a.t.findings ? b : a));
+  $("weekly-note").textContent = `${rows.length} weeks · peak ${fmt.format(peak.t.findings)} in the week of ${peak.week}`;
+  table(
+    $("table-weekly"),
+    [{ label: "Week" }, { label: "Findings", num: true }, ...OUTCOMES.map((o) => ({ label: o.label, num: true })), { label: "Kept rate", num: true }],
+    rows.slice().reverse().map((r) => [r.week, fmt.format(r.t.findings), ...OUTCOMES.map((o) => fmt.format(r.t[o.key])), pct(r.t.keptRate)]),
+  );
+}
+
+// ---------- horizontal bars ----------
+function hbars(target, items, { stacked, label }) {
+  target.replaceChildren();
+  if (items.length === 0) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = "Nothing in this slice.";
+    target.append(d);
+    return;
+  }
+  const width = target.clientWidth || 500;
+  const row = 34;
+  const m = { top: 4, right: 92, bottom: 4, left: 120 };
+  const height = m.top + m.bottom + row * items.length;
+  const iw = width - m.left - m.right;
+  const max = Math.max(...items.map((i) => i.total));
+  const svg = el("svg", { viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": label }, target);
+  el("line", { x1: m.left, x2: m.left, y1: m.top, y2: height - m.bottom, stroke: color("axis"), "stroke-width": 1 }, svg);
+  items.forEach((item, i) => {
+    const y = m.top + row * i + (row - 18) / 2;
+    text(svg, m.left - 10, y + 13, item.name, { "text-anchor": "end", class: "ink" });
+    const g = el("g", { class: "seg", tabindex: 0 }, svg);
+    let x = m.left;
+    const parts = stacked ? OUTCOMES.filter((o) => item.t[o.key] > 0).map((o) => ({ key: o.key, v: item.t[o.key] })) : [{ key: "single", v: item.total }];
+    parts.forEach((p, j) => {
+      const w = (p.v / max) * iw;
+      const gap = j === 0 ? 0 : 2;
+      el("path", { class: "mark", d: barPath(x + gap, y, Math.max(0, w - gap), 18, "right", j === parts.length - 1), fill: color(p.key) }, g);
+      x += w;
+    });
+    text(svg, x + 8, y + 13, item.tipLabel, { class: "ink" });
+    el("rect", { class: "hit", x: m.left, y: m.top + row * i, width: iw + m.right, height: row }, g);
+    const show = (e) => showTip(e, item.name, item.tipRows);
+    g.addEventListener("pointermove", show);
+    g.addEventListener("focus", (e) => showTip({ target: e.target, clientX: e.target.getBoundingClientRect().right, clientY: e.target.getBoundingClientRect().top + 20 }, item.name, item.tipRows));
+    g.addEventListener("pointerleave", hideTip);
+    g.addEventListener("blur", hideTip);
+  });
+}
+function renderLens(findings) {
+  legend($("legend-lens"));
+  const byLens = new Map();
+  for (const f of findings) byLens.set(f.lens, [...(byLens.get(f.lens) ?? []), f]);
+  const items = [...byLens]
+    .map(([name, list]) => {
+      const t = tally(list);
+      return {
+        name, t, total: t.findings,
+        tipLabel: `${fmt.format(t.findings)} · ${pct(t.keptRate)} kept`,
+        tipRows: [
+          { value: pct(t.keptRate), label: "kept rate" },
+          ...OUTCOMES.map((o) => ({ key: o.key, value: fmt.format(t[o.key]), label: o.label })),
+        ],
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+  hbars($("chart-lens"), items, { stacked: true, label: "Findings by lens, stacked by outcome" });
+  table(
+    $("table-lens"),
+    [{ label: "Lens" }, { label: "Findings", num: true }, ...OUTCOMES.map((o) => ({ label: o.label, num: true })), { label: "Kept rate", num: true }, { label: "Exact", num: true }],
+    items.map((i) => [i.name, fmt.format(i.total), ...OUTCOMES.map((o) => fmt.format(i.t[o.key])), pct(i.t.keptRate), pct(i.t.findings ? i.t.exact / i.t.findings : null)]),
+  );
+}
+function primaryWriter(p) {
+  return p.writtenBy.find((w) => w !== "human") ?? "human";
+}
+function renderWriters(prs) {
+  const work = prs.filter((p) => p.fixes === null);
+  const byWriter = new Map();
+  for (const p of work) byWriter.set(primaryWriter(p), [...(byWriter.get(primaryWriter(p)) ?? []), p]);
+  const items = [...byWriter]
+    .map(([name, list]) => {
+      const merged = list.filter((p) => p.state === "MERGED").length;
+      const open = list.filter((p) => p.state === "OPEN").length;
+      return {
+        name, total: list.length, tipLabel: fmt.format(list.length),
+        tipRows: [
+          { value: fmt.format(list.length), label: "PRs" },
+          { value: fmt.format(merged), label: "merged" },
+          { value: fmt.format(open), label: "open" },
+        ],
+        merged, open,
+      };
+    })
+    .sort((a, b) => b.total - a.total);
+  hbars($("chart-writer"), items, { stacked: false, label: "Pull requests by writer" });
+  table(
+    $("table-writer"),
+    [{ label: "Writer" }, { label: "PRs", num: true }, { label: "Merged", num: true }, { label: "Open", num: true }],
+    items.map((i) => [i.name, fmt.format(i.total), fmt.format(i.merged), fmt.format(i.open)]),
+  );
+}
+
+// ---------- tables ----------
+function renderFiles(findings) {
+  const byFile = new Map();
+  for (const f of findings) byFile.set(f.path, [...(byFile.get(f.path) ?? []), f]);
+  const rows = [...byFile]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 15)
+    .map(([path, list]) => {
+      const t = tally(list);
+      const p = document.createElement("span");
+      p.className = "path";
+      p.textContent = path;
+      return [p, fmt.format(t.findings), fmt.format(t.kept), fmt.format(t.unaddressed + t.disregarded), pct(t.keptRate)];
+    });
+  table($("table-files"), [{ label: "File" }, { label: "Findings", num: true }, { label: "Kept", num: true }, { label: "Not acted on", num: true }, { label: "Kept rate", num: true }], rows);
+}
+let currentFindings = [];
+function renderFindingsTable() {
+  const outcome = $("f-outcome").value;
+  const confidence = $("f-confidence").value;
+  const q = $("f-search").value.trim().toLowerCase();
+  const list = currentFindings
+    .filter((f) => (!outcome || f.outcome === outcome) && (!confidence || f.confidence === confidence))
+    .filter((f) => !q || f.path.toLowerCase().includes(q) || f.excerpt.toLowerCase().includes(q))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  $("findings-count").textContent = `${fmt.format(list.length)} shown`;
+  const rows = list.slice(0, 300).map((f) => {
+    const where = document.createElement("div");
+    const p = document.createElement("div");
+    p.className = "path";
+    p.textContent = `${f.path}${f.line ? `:${f.line}` : ""}`;
+    const ex = document.createElement("div");
+    ex.className = "excerpt";
+    ex.textContent = f.excerpt;
+    where.append(p, ex);
+    const basis = document.createElement("span");
+    basis.className = "pill";
+    basis.textContent = `${f.basis} · ${f.confidence}`;
+    return [f.createdAt.slice(0, 10), link(f.pr.url, `#${f.pr.number}`), f.lens, where, outcomeCell(f.outcome), basis, link(f.url, "Open")];
+  });
+  table($("table-findings"), [{ label: "Date" }, { label: "PR" }, { label: "Lens" }, { label: "Finding" }, { label: "Outcome" }, { label: "Decided by" }, { label: "" }], rows);
+}
+function renderPrs(prs) {
+  const list = prs.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  $("prs-count").textContent = `${fmt.format(list.length)} in this slice`;
+  const rows = list.slice(0, 300).map((p) => {
+    const t = tally(p.findings);
+    const title = document.createElement("div");
+    title.append(link(p.url, `#${p.number} ${p.title}`));
+    if (!$("f-project").value) {
+      const r = document.createElement("div");
+      r.className = "muted";
+      r.textContent = p.repo;
+      title.append(r);
+    }
+    const state = document.createElement("span");
+    state.className = "pill";
+    state.textContent = p.fixes !== null ? `fix for #${p.fixes} · ${p.state.toLowerCase()}` : p.state.toLowerCase();
+    return [p.createdAt.slice(0, 10), title, p.writtenBy.join(", "), state, fmt.format(t.findings), pct(t.keptRate)];
+  });
+  table($("table-prs"), [{ label: "Opened" }, { label: "Pull request" }, { label: "Written by" }, { label: "State" }, { label: "Findings", num: true }, { label: "Kept rate", num: true }], rows);
+}
+
+
+// ---------- entries ----------
+const ENTRIES = DATA.entries ?? [];
+function entrySlice() {
+  const project = $("f-project").value;
+  const period = $("f-period").value;
+  const since = period === "all" ? "" : new Date(Date.now() - Number(period) * 864e5).toISOString();
+  return ENTRIES.filter((e) => (!project || e.repo === project) && e.at >= since).sort((a, b) => b.at.localeCompare(a.at));
+}
+function pill(textValue) {
+  const s = document.createElement("span");
+  s.className = "pill";
+  s.textContent = textValue;
+  return s;
+}
+const metricText = (e, k) => (e.metrics[k] === undefined ? "–" : String(e.metrics[k]));
+const change = (e, a, b) => (e.metrics[a] === undefined && e.metrics[b] === undefined ? "–" : `${metricText(e, a)} → ${metricText(e, b)}`);
+function renderEntries() {
+  const list = entrySlice();
+  const loops = list.filter((e) => e.kind === "loop-run");
+  $("loops-card").style.display = loops.length ? "" : "none";
+  $("loops-count").textContent = `${fmt.format(loops.length)} runs`;
+  table(
+    $("table-loops"),
+    [{ label: "Finished" }, { label: "Program" }, { label: "Outcome" }, { label: "Iterations", num: true }, { label: "Kept", num: true }, { label: "Dev" }, { label: "Held-out" }, { label: "Cost", num: true }, { label: "" }],
+    loops.map((e) => {
+      const pr = e.links.find((l) => /pull/.test(l.url)) ?? e.links[0];
+      return [
+        e.at.slice(0, 10),
+        e.metrics.program === undefined ? e.title : String(e.metrics.program),
+        pill(e.outcome),
+        metricText(e, "iterations"),
+        metricText(e, "kept"),
+        change(e, "dev_before", "dev_after"),
+        change(e, "heldout_before", "heldout_after"),
+        e.metrics.cost_usd === undefined ? "–" : `$${e.metrics.cost_usd}`,
+        pr ? link(pr.url, pr.label) : "",
+      ];
+    }),
+  );
+  const root = $("entries");
+  root.replaceChildren();
+  $("entries-count").textContent = `${fmt.format(list.length)} entries`;
+  if (list.length === 0) {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.textContent = "No entries yet. Agents add one when a loop, decision or investigation finishes.";
+    root.append(d);
+    return;
+  }
+  for (const e of list.slice(0, 50)) {
+    const item = document.createElement("article");
+    item.className = "entry";
+    const head = document.createElement("div");
+    head.className = "entry-head";
+    const date = document.createElement("span");
+    date.className = "muted";
+    date.textContent = e.at.slice(0, 10);
+    const title = document.createElement("span");
+    title.className = "entry-title";
+    title.textContent = e.title;
+    head.append(date, pill(e.kind), title, pill(e.outcome));
+    if (!$("f-project").value) head.append(pill(e.repo.split("/")[1]));
+    if (e.author) head.append(pill(e.author));
+    const summary = document.createElement("div");
+    summary.className = "entry-summary";
+    summary.textContent = e.summary;
+    item.append(head, summary);
+    const keys = Object.keys(e.metrics);
+    if (keys.length) {
+      const meta = document.createElement("div");
+      meta.className = "entry-meta";
+      for (const k of keys) meta.append(pill(`${k} ${e.metrics[k]}`));
+      item.append(meta);
+    }
+    if (e.links.length) {
+      const links = document.createElement("div");
+      links.className = "entry-links";
+      for (const l of e.links) links.append(link(l.url, l.label));
+      item.append(links);
+    }
+    root.append(item);
+  }
+}
+
+function render() {
+  hideTip();
+  const { prs, findings } = slice();
+  currentFindings = findings;
+  renderTiles(prs, findings);
+  renderEntries();
+  renderWeekly(findings);
+  renderLens(findings);
+  renderWriters(prs);
+  renderFiles(findings);
+  renderFindingsTable();
+  renderPrs(prs);
+}
+
+$("generated").textContent = `Generated ${new Date(DATA.generatedAt).toLocaleString()} from ${fmt.format(DATA.prs.length)} pull requests and ${fmt.format((DATA.entries ?? []).length)} entries across ${projects.length} projects`;
+let resizeTimer;
+addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 120);
+});
+render();
+</script>
+</body>
+</html>

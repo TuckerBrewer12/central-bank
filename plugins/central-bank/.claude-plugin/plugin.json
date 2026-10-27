@@ -1,0 +1,9 @@
+{
+  "name": "central-bank",
+  "version": "0.1.0",
+  "description": "Tucker's software factory: record finished work to the central-bank ledger, and the shared workflows every project uses.",
+  "author": { "name": "Tucker Brewer" },
+  "homepage": "https://github.com/TuckerBrewer12/central-bank",
+  "repository": "https://github.com/TuckerBrewer12/central-bank",
+  "license": "MIT"
+}
